@@ -1,0 +1,21 @@
+Package: HOIFCar
+Type: Package
+Title: Covariate Adjustment in RCT by Higher-Order Influence Functions
+Version: 0.2.1
+Authors@R: c( 
+    person("Sihui", "Zhao", email = "shzhao0115@sjtu.edu.cn", role = "aut"),
+    person("Xinbo", "Wang", email = "cinbo_w@sjtu.edu.cn", role = c("cre", "aut")),
+    person("Liu", "Liu", email = "linliu@sjtu.edu.cn", role = "ctb"))
+Maintainer: Xinbo Wang <cinbo_w@sjtu.edu.cn>
+Description: Estimates treatment effects  using covariate adjustment methods in Randomized Clinical Trials (RCT) motivated by higher-order influence functions (HOIF). Provides point estimates, oracle bias, variance, and approximate variance for HOIF-adjusted estimators. For methodology details, see Zhao et al. (2024) <doi:10.48550/arXiv.2411.08491>.
+License: MIT + file LICENSE
+Suggests: mvtnorm
+Encoding: UTF-8
+RoxygenNote: 7.3.2
+NeedsCompilation: no
+Packaged: 2025-06-23 15:49:41 UTC; xinbowang
+Author: Sihui Zhao [aut],
+  Xinbo Wang [cre, aut],
+  Liu Liu [ctb]
+Repository: CRAN
+Date/Publication: 2025-06-25 15:40:06 UTC

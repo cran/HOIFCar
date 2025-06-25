@@ -1,0 +1,14 @@
+59f339d0505c55570f1e4be5880819fa *DESCRIPTION
+bce6cacdf732ac1a7a5a90c648b64b50 *LICENSE
+363c30c6c45fd2321847955aab39f39d *NAMESPACE
+7dbd87b2ac7a3d23616ff0b874d0845a *R/fun_estimate_mean_treat.R
+ad9295fd045ae2093a9a8fbf8d7424d6 *R/fun_oracle_infer.R
+181b5ac5a69bd3e3e542680739e88fd5 *build/partial.rdb
+575a82e671335dbbe7a15d67b3ecf515 *man/esti_mean_treat.Rd
+a118551e2efcb9ab1cf5fa1405e6ad3a *man/fit.adj2.adj2c.Random.Rd
+b83e752bebcf8dbc7f8cb414ba70e3be *man/fit.adj2.adj2c.Super.Rd
+03bf175bcc800c8e5b636ed78b3d4fca *man/fit.ate.adj2.adj2c.Random.Rd
+a05cb05adee76e8ded1bd6873e519b0d *man/fit.treat.adj2.adj2c.Random.Rd
+de0a51394b846750ee06aa285db5567b *man/get_oracle_bias_var_adj2c.Rd
+6437db901b87a179df25cded91ca4532 *man/get_oracle_bias_var_adj_2_3.Rd
+6d8b23ceb8c7acb7a382e53fb031f09c *man/get_oracle_bias_var_adj_db.Rd

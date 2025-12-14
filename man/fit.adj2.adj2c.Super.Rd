@@ -23,7 +23,7 @@ fit.adj2.adj2c.Super(
 
 \item{intercept}{Logical. If TRUE (default), X already contains intercept. Set FALSE if X does not contain intercept.}
 
-\item{pi1}{Default is NULL. The assignment probability for the randomization assignment.}
+\item{pi1}{The assignment probability for the randomization assignment. If `NULL` (the default), the empirical assignment probability is used.}
 
 \item{target}{A character string specifying the target estimand. Must be one of:
 - `"ATE"` (default): Average Treatment Effect (difference between treatment and control arms).

@@ -24,14 +24,14 @@ get_oracle_bias_var_adj_db <- function(X,Y1,n1 = NULL){
   pi1 <- n1/n
   pi0 <- 1 - pi1
   Xc <- scale(X,scale=FALSE)
-  Xc_svd <- svd(Xc)
-  H <- Xc_svd$u %*% t(Xc_svd$u)
+  H <- Xc %*% MASS::ginv(t(Xc) %*% Xc) %*% t(Xc)
+
   h <- diag(H)
 
   tau <- mean(Y1)
   tau2 <- mean(Y1^2)
   Sigmay <- t(Xc) %*% diag(Y1) %*% Xc #
-  Omega <- solve(t(Xc) %*% Xc)
+  Omega <- MASS::ginv(t(Xc) %*% Xc)
   tr <- sum(diag(Sigmay %*% Omega %*% Sigmay %*% Omega))
   tr_half <- sum(diag(Sigmay %*% Omega))
 
@@ -105,8 +105,7 @@ get_oracle_bias_var_adj2c <- function(X,Y1,n1=NULL){
   pi0 <- 1-pi1
 
   Xc <- scale(X,scale=FALSE)
-  Xc_svd <- svd(Xc)
-  H <- Xc_svd$u %*% t(Xc_svd$u)
+  H <- Xc %*% MASS::ginv(t(Xc) %*% Xc) %*% t(Xc)
   h <- diag(H)
   all_1s <- rep(1, n)
   tau <- mean(Y1)
@@ -172,7 +171,7 @@ get_oracle_bias_var_adj2c <- function(X,Y1,n1=NULL){
     pi0/pi1^3*(pi1-pi0/(n-1))*(
       n^3*pi1^2*(7*pi1-5)/n/(n-2)/(n-3)/(n-4) + n^2*pi1*(-18*pi1**2-10*pi1+16)/n/(n-2)/(n-3)/(n-4) +
         n*(8*pi1^3+26*pi1^2+2*pi1-16)/n/(n-2)/(n-3)/(n-4)+(8*pi1^2-32*pi1+16)/n/(n-2)/(n-3)/(n-4)
-    )*(-tmp_term3 - sum(diag(Sigmay %*% solve(Sigma_hat) %*% Sigmay %*% solve(Sigma_hat))) + sum(diag(H)**2*Y1**2)) +
+    )*(-tmp_term3 - sum(diag(Sigmay %*% MASS::ginv(Sigma_hat) %*% Sigmay %*% MASS::ginv(Sigma_hat))) + sum(diag(H)**2*Y1**2)) +
     pi0/pi1^3*(pi1-pi0/(n-1))*(
       pi1^3 + n^3*pi1^2*(7*pi1-5)/n/(n-2)/(n-3)/(n-4) + n^2*pi1*(-30*pi1^2+8*pi1+10)/n/(n-2)/(n-3)/(n-4) +
         n*(32*pi1**3-8*pi1-8)/n/(n-2)/(n-3)/(n-4) + (8*pi1**2-12*pi1+8)/n/(n-2)/(n-3)/(n-4)
@@ -212,7 +211,7 @@ get_oracle_bias_var_adj2c <- function(X,Y1,n1=NULL){
     pi0/pi1^3*(pi1-pi0/(n-1))*(
       -3*n^3*pi1^2*pi0/n/(n-2)/(n-3)/(n-4) + n^2*pi1*(-10*pi1^2-10*pi1+16)/n/(n-2)/(n-3)/(n-4) +
         n*(8*pi1^3+34*pi1^2-10*pi1-16)/n/(n-2)/(n-3)/(n-4) + (8*pi1^2-32*pi1+16)/n/(n-2)/(n-3)/(n-4)
-    )*(-tmp_term3 - sum(diag(Sigmay %*% solve(Sigma_hat) %*% Sigmay %*% solve(Sigma_hat))) + sum(diag(H)**2*Y1**2)) +
+    )*(-tmp_term3 - sum(diag(Sigmay %*% MASS::ginv(Sigma_hat) %*% Sigmay %*% MASS::ginv(Sigma_hat))) + sum(diag(H)**2*Y1**2)) +
     pi0/pi1^3*(pi1-pi0/(n-1))*(
       -n^3*pi1^2*pi0/n/(n-2)/(n-3)/(n-4) + n^2*pi1*(-2*pi1^2-4*pi1+6)/n/(n-2)/(n-3)/(n-4)+
         n*(6*pi1^2-8)/n/(n-2)/(n-3)/(n-4)+(-4*pi1+8)/n/(n-2)/(n-3)/(n-4)
@@ -249,20 +248,20 @@ get_oracle_bias_var_adj2c <- function(X,Y1,n1=NULL){
       n^2*(3*pi1-4*pi1**2)/n/(n-3)/(n-4)/(n-5) +
         (n*(pi1+10*pi1^2-6)-10*pi1+6)/n/(n-3)/(n-4)/(n-5)
     )*2*(
-      -2*sum(diag(H)**2*Y1**2) + 2*sum(diag(Sigmay %*% solve(Sigma_hat) %*% Sigmay %*% solve(Sigma_hat))) +
+      -2*sum(diag(H)**2*Y1**2) + 2*sum(diag(Sigmay %*% MASS::ginv(Sigma_hat) %*% Sigmay %*% MASS::ginv(Sigma_hat))) +
         tmp_term3
     ) + pi0/pi1^3*(pi1-pi0/(n-1))*(
       -n^4*pi1^3+n^3*pi1^2*(-9*pi1+16)+n^2*pi1*(38*pi1**2-2*pi1-48) +
         n*(-40*pi1^3-22*pi1^2+16*pi1+48) + (-40*pi1^2+80*pi1-48)
     )/n/(n-2)/(n-3)/(n-4)/(n-5)*(
-      -2*sum(diag(H)**2*Y1**2) + sum(diag(Sigmay %*% solve(Sigma_hat)))**2 +
-        sum(diag(Sigmay %*% solve(Sigma_hat) %*% Sigmay %*% solve(Sigma_hat))) +
+      -2*sum(diag(H)**2*Y1**2) + sum(diag(Sigmay %*% MASS::ginv(Sigma_hat)))**2 +
+        sum(diag(Sigmay %*% MASS::ginv(Sigma_hat) %*% Sigmay %*% MASS::ginv(Sigma_hat))) +
         tmp_term4
     )
 
   Expectation_square <- term12_right + term34_right + term56_right + term7_right
 
-  tr_half <- sum(diag(Sigmay %*% solve(Sigma_hat)))
+  tr_half <- sum(diag(Sigmay %*% MASS::ginv(Sigma_hat)))
 
   Square_expectation <- (pi0/pi1*(pi1-pi0/(n-1))/(n-2))^2*(
     4*tau^2*(p**2) - 8*tau*p*sum(h*Y1)+ 4*tr_half**2
@@ -308,7 +307,7 @@ get_oracle_bias_var_adj2c <- function(X,Y1,n1=NULL){
   var_adj2c_exact <- var_tau_unadj + var_IF_22_dag_exact - 2*cov_unadj_IF_22_dag
 
 
-  tr <- sum(diag(Sigmay %*% solve(Sigma_hat) %*% Sigmay %*% solve(Sigma_hat)))
+  tr <- sum(diag(Sigmay %*% MASS::ginv(Sigma_hat) %*% Sigmay %*% MASS::ginv(Sigma_hat)))
   term_approx <- (2*pi0/pi1**2*p/n**2 - pi0/pi1*p**2/n**3)*tau**2 +
     (-2*pi0/pi1**2/n**2 + 3*pi0/pi1/n**2)*tau**2  *sum(h**2) +
     (-4*pi0/pi1**2/n**2 + 2*pi0*p / pi1/n**3)*tau*sum(h*Y1) +
@@ -408,13 +407,11 @@ get_oracle_bias_var_adj_2_3 <- function(X,Y1,n1=NULL){
   pi0 <- 1-pi1
 
   Xc <- scale(X,scale=F)
-  Xc_svd <- svd(Xc)
-
-  H <- Xc_svd$u %*% t(Xc_svd$u)
+  H <- Xc %*% MASS::ginv(t(Xc) %*% Xc) %*% t(Xc)
   h <- diag(H)
   all_1s <- rep(1, n)
 
-
+  Xc_svd <- svd(Xc)
   if(ncol(X)==1){
     Omega <- Xc_svd$d^(-2) * Xc_svd$v  %*% t(Xc_svd$v)
   }else{
@@ -483,7 +480,7 @@ get_oracle_bias_var_adj_2_3 <- function(X,Y1,n1=NULL){
 
 
   Sigma_hat <- t(Xc) %*% Xc
-  tr <- sum(diag(Sigmay %*% solve(Sigma_hat)))
+  tr <- sum(diag(Sigmay %*% MASS::ginv(Sigma_hat)))
   var_delta <- (pi0/pi1)^3/n/(n-1)^3*(
     sum(h**2*Y1**2) - tr**2/n
   )

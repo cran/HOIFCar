@@ -42,6 +42,7 @@
 #' Zhao, S., Wang, X., Liu, L. and Zhang, X. (2024) \emph{Covariate Adjustment in Randomized Experiments Motivated by Higher-Order Influence Functions. arXiv preprint, arXiv:2411.08491}, \doi{10.48550/arXiv.2411.08491}.
 #'
 #' @importFrom stats lm resid hat
+#' @importFrom MASS ginv
 #' @examples
 #' set.seed(100)
 #' n <- 500
@@ -58,9 +59,8 @@
 #' A <- rep(0, n)
 #' A[ind] <- 1
 #' Y <- Y1 * A + Y0 * (1 - A)
-#'
-#' Xc_svd <- svd(X)
-#' H <- Xc_svd$u %*% t(Xc_svd$u)
+#' Xc <- scale(X, scale = FALSE)
+#' H <- Xc %*% MASS::ginv(t(Xc) %*% Xc) %*% t(Xc)
 #'
 #' result_ls <- esti_mean_treat(X, Y, A, H)
 #' point_est <- result_ls$point_est
@@ -84,8 +84,7 @@ esti_mean_treat <- function(X, Y, A, H = NULL) {
 
   Xc <- scale(X, scale = FALSE)
   if (is.null(H)) {
-    Xc_svd <- svd(Xc)
-    H <- Xc_svd$u %*% t(Xc_svd$u)
+    H <- Xc %*% MASS::ginv(t(Xc) %*% Xc) %*% t(Xc)
   }
 
   tau_unadj <- mean(A * Y) / mean(A)
@@ -286,6 +285,7 @@ esti_mean_treat <- function(X, Y, A, H = NULL) {
 #' Zhao, S., Wang, X., Liu, L. and Zhang, X. (2024) \emph{Covariate Adjustment in Randomized Experiments Motivated by Higher-Order Influence Functions. arXiv preprint, arXiv:2411.08491}, \doi{10.48550/arXiv.2411.08491}.
 #'
 #' @importFrom stats var
+#' @importFrom MASS ginv
 #' @examples
 #' set.seed(100)
 #' n <- 500
@@ -343,7 +343,7 @@ fit.ate.adj2.adj2c.Random <- function(Y, X, A, pi1_hat = NULL) {
   Y0_bar <- mean(Y[A == 0])
 
   S_X2 <- t(X) %*% X / (n)
-  S_X2_inv <- solve(S_X2)
+  S_X2_inv <- MASS::ginv(S_X2)
   S_X1Y1 <- t(X[A == 1, ]) %*% (Y[A == 1] - Y1_bar) / (n1)
   S_X0Y0 <- t(X[A == 0, ]) %*% (Y[A == 0] - Y0_bar) / (n0)
 
@@ -351,7 +351,7 @@ fit.ate.adj2.adj2c.Random <- function(Y, X, A, pi1_hat = NULL) {
   beta0 <- S_X2_inv %*% S_X0Y0
   tau_adj <- sum(A * (Y - X %*% beta1)) / n1 - sum((1 - A) * (Y - X %*% beta0)) / n0
 
-  H <- X %*% solve(t(X) %*% X)  %*% t(X)
+  H <- X %*% MASS::ginv(t(X) %*% X)  %*% t(X)
   db <- r1 * r0 * (sum(A * diag(H) * (Y - Y1_bar)) / (r1 ^ 2 * n1)
                    - sum((1 - A) * diag(H) * (Y - Y0_bar)) / (r0 ^ 2 * n0))
   tau_adj2c <- tau_adj + db
@@ -568,13 +568,13 @@ fit.treat.adj2.adj2c.Random <- function(Y, X, A, pi1_hat = NULL) {
   Y1_bar <- mean(Y[A == 1])
 
   S_X2 <- t(X) %*% X / (n)
-  S_X2_inv <- solve(S_X2)
+  S_X2_inv <- MASS::ginv(S_X2)
   S_X1Y1 <- t(X[A == 1, ]) %*% (Y[A == 1] - Y1_bar) / (n1)
 
   beta1 <- S_X2_inv %*% S_X1Y1
   tau_adj <- sum(A * (Y - X %*% beta1)) / n1
 
-  H <- X %*% solve(t(X) %*% X)  %*% t(X)
+  H <- X %*% MASS::ginv(t(X) %*% X)  %*% t(X)
   db <- r1 * r0 * (sum(A * diag(H) * (Y - Y1_bar)) / (r1 ^ 2 * n1))
   tau_adj2c <- tau_adj + db
 
@@ -807,7 +807,7 @@ func_mat_cross <- function(H, Y, Z, is.center = TRUE) {
 #' @param X Numeric matrix (n x p) of covariates. Centering is required. May include intercept column.
 #' @param A Binary vector of length n indicating treatment assignment (1 = treatment, 0 = control).
 #' @param intercept Logical. If TRUE (default), X already contains intercept. Set FALSE if X does not contain intercept.
-#' @param pi1 Default is NULL. The assignment probability for the randomization assignment.
+#' @param pi1 The assignment probability for the randomization assignment. If `NULL` (the default), the empirical assignment probability is used.
 #' @param target A character string specifying the target estimand. Must be one of:
 #'   - `"ATE"` (default): Average Treatment Effect (difference between treatment and control arms).
 #'   - `"EY1"`: Expected outcome under treatment (estimates the effect for the treated group).
@@ -842,6 +842,7 @@ func_mat_cross <- function(H, Y, Z, is.center = TRUE) {
 #' Zhao, S., Wang, X., Liu, L. and Zhang, X. (2024) \emph{Covariate Adjustment in Randomized Experiments Motivated by Higher-Order Influence Functions. arXiv preprint, arXiv:2411.08491}, \doi{10.48550/arXiv.2411.08491}.
 #'
 #' @importFrom stats var predict lm sd
+#' @importFrom MASS ginv
 #' @examples
 #'
 #' set.seed(120)
@@ -913,7 +914,7 @@ fit.adj2.adj2c.Super <- function(Y,
 
 
   #### adj2
-  H <- X %*% solve(t(X) %*% X) %*% t(X)
+  H <- X %*% MASS::ginv(t(X) %*% X) %*% t(X)
 
   yt_adj2_hat <- as.numeric((H - diag(diag(H))) %*% (A * Y / pi1_hat))
   yc_adj2_hat <- as.numeric((H - diag(diag(H))) %*% ((1 - A) * Y / (1 - pi1_hat)))
@@ -922,24 +923,25 @@ fit.adj2.adj2c.Super <- function(Y,
   ## If consider linear calibration
   is_cal <- FALSE
   if(lc){
-    ## Calibration should be performed unless the matrix condition number is excessively large.
-    X_adj2 <- cbind(1, yc_adj2_hat, yt_adj2_hat)
-    X0_adj2 <- X_adj2[A == 0, ]
-    X1_adj2 <- X_adj2[A == 1, ]
-    eig.X0_adj2.ls <- eigen(t(X0_adj2) %*% X0_adj2)
-    eig.X1_adj2.ls <- eigen(t(X1_adj2) %*% X1_adj2)
+    Xtilde <- data.frame(y = Y, mu1 = yt_adj2_hat, mu0 = yc_adj2_hat)
+    fit1.adj <- lm(y~., data = Xtilde, subset = (A == 1))
+    fit0.adj <- lm(y~., data = Xtilde, subset = (A == 0))
 
-    kappa_X0_adj2 <- eig.X0_adj2.ls$values[1] / eig.X0_adj2.ls$values[length(eig.X0_adj2.ls$values)]
-    kappa_X1_adj2 <- eig.X1_adj2.ls$values[1] / eig.X1_adj2.ls$values[length(eig.X1_adj2.ls$values)]
+    yt_adj2_cal_hat <- predict(fit1.adj, newdata = Xtilde)
+    yc_adj2_cal_hat <- predict(fit0.adj, newdata = Xtilde)
 
-    num_cov <- sum(apply(X, 2, sd) > 0)
-    if(max(kappa_X0_adj2, kappa_X1_adj2) < 1000 & num_cov > 1){
-      Xtilde <- data.frame(y = Y, mu1 = yt_adj2_hat, mu0 = yc_adj2_hat)
-      fit1.adj <- lm(y ~ ., data = Xtilde, subset = (A == 1))
-      fit0.adj <- lm(y ~ ., data = Xtilde, subset = (A == 0))
-
-      yt_adj2_hat <- predict(fit1.adj, newdata = Xtilde)
-      yc_adj2_hat <- predict(fit0.adj, newdata = Xtilde)
+    p <- ncol(X)
+    if(p < 10){
+      width <- max(Y) - min(Y)
+      lb <- min(Y) - 0.1 * width; ub <- max(Y) + 0.1 * width
+    }else{
+      lb <- -Inf; ub <- Inf
+    }
+    cond1 <- (min(yc_adj2_cal_hat) > lb & max(yc_adj2_cal_hat) < ub)
+    cond2 <- (min(yt_adj2_cal_hat) > lb & max(yt_adj2_cal_hat) < ub)
+    if((cond1 & cond2)){
+      yt_adj2_hat <- yt_adj2_cal_hat
+      yc_adj2_hat <- yc_adj2_cal_hat
       is_cal <- TRUE
     }
   }
@@ -1019,24 +1021,18 @@ fit.adj2.adj2c.Super <- function(Y,
 
   is_cal <- FALSE
   if(lc){
-    ## Calibration should be performed unless the matrix condition number is excessively large.
-    X_adj2c <- cbind(1, yc_adj2c_hat, yt_adj2c_hat)
-    X0_adj2c <- X_adj2c[A == 0, ]
-    X1_adj2c <- X_adj2c[A == 1, ]
-    eig.X0_adj2c.ls <- eigen(t(X0_adj2c) %*% X0_adj2c)
-    eig.X1_adj2c.ls <- eigen(t(X1_adj2c) %*% X1_adj2c)
+    Xtilde <- data.frame(y = Y, mu1 = yt_adj2c_hat, mu0 = yc_adj2c_hat)
+    fit1.adj <- lm(y~., data = Xtilde,subset = (A == 1))
+    fit0.adj <- lm(y~., data = Xtilde,subset = (A == 0))
 
-    kappa_X0_adj2c <- eig.X0_adj2c.ls$values[1] / eig.X0_adj2c.ls$values[length(eig.X0_adj2c.ls$values)]
-    kappa_X1_adj2c <- eig.X1_adj2c.ls$values[1] / eig.X1_adj2c.ls$values[length(eig.X1_adj2c.ls$values)]
+    yt_adj2c_cal_hat <- predict(fit1.adj, newdata = Xtilde)
+    yc_adj2c_cal_hat <- predict(fit0.adj, newdata = Xtilde)
 
-    num_cov <- sum(apply(X, 2, sd) > 0)
-    if(max(kappa_X0_adj2c, kappa_X1_adj2c) < 1000 & num_cov > 1){
-      Xtilde <- data.frame(y = Y, mu1 = yt_adj2c_hat, mu0 = yc_adj2c_hat)
-      fit1.adj <- lm(y ~ ., data = Xtilde, subset = (A == 1))
-      fit0.adj <- lm(y ~ ., data = Xtilde, subset = (A == 0))
-
-      yt_adj2c_hat <- predict(fit1.adj, newdata = Xtilde)
-      yc_adj2c_hat <- predict(fit0.adj, newdata = Xtilde)
+    cond1 <- (min(yc_adj2c_cal_hat) > lb & max(yc_adj2c_cal_hat) < ub)
+    cond2 <- (min(yt_adj2c_cal_hat) > lb & max(yt_adj2c_cal_hat) < ub)
+    if((cond1 & cond2)){
+      yt_adj2c_hat <- yt_adj2c_cal_hat
+      yc_adj2c_hat <- yc_adj2c_cal_hat
       is_cal <- TRUE
     }
   }

@@ -62,9 +62,8 @@ ind <- sample(n, size = n1)
 A <- rep(0, n)
 A[ind] <- 1
 Y <- Y1 * A + Y0 * (1 - A)
-
-Xc_svd <- svd(X)
-H <- Xc_svd$u \%*\% t(Xc_svd$u)
+Xc <- scale(X, scale = FALSE)
+H <- Xc \%*\% MASS::ginv(t(Xc) \%*\% Xc) \%*\% t(Xc)
 
 result_ls <- esti_mean_treat(X, Y, A, H)
 point_est <- result_ls$point_est

@@ -2,6 +2,7 @@
 
 export(esti_mean_treat)
 export(fit.JASA)
+export(fit.adj2.adj2c.CAR)
 export(fit.adj2.adj2c.Random)
 export(fit.adj2.adj2c.Super)
 export(fit.ate.adj2.adj2c.Random)

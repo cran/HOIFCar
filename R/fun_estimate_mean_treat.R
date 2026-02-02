@@ -1097,4 +1097,364 @@ fit.adj2.adj2c.Super <- function(Y,
 
 }
 
+#' Covariate-Adjusted Treatment Effect Estimation under Covariate-Adaptive randomization
+#'
+#' Implements HOIF-inspired debiased estimators for average treatment effect (ATE)  or treatment effect on the treatment/control arm with variance estimation
+#' using estimated asymptotic variance. Designed for randomized experiments with moderately high-dimensional covariates.
+#'
+#'
+#' @param Y Numeric vector of length n containing observed responses.
+#' @param X Numeric matrix (n x p) of covariates. Centering is required. May include intercept column.
+#' @param S Vector of length n denoting strata used in randomization procedure. Either a factor or an integer-valued numeric vector indexed from 1 to K.
+#' @param A Binary vector of length n indicating treatment assignment (1 = treatment, 0 = control).
+#' @param intercept Logical. If TRUE (default), X already contains intercept. Set FALSE if X does not contain intercept.
+#' @param pi1 The assignment probability for the randomization assignment. If `NULL` (the default), the empirical assignment probability is used.
+#'            Should be a vector with length K (Number of strata).
+#' @param target A character string specifying the target estimand. Must be one of:
+#'   - `"ATE"` (default): Average Treatment Effect (difference between treatment and control arms).
+#'   - `"EY1"`: Expected outcome under treatment (estimates the effect for the treated group).
+#'   - `"EY0"`: Expected outcome under control (estimates the effect for the control group).
+#'
+#'
+#' @return A list containing two named vectors, including point estimates and variance estimates:
+#' \describe{
+#'   \item{tau_vec}{Point estimates:
+#'     \itemize{
+#'       \item{\code{adj2}:} Point estimation of the HOIF-inspired debiased estimator (Gu et al., 2025).
+#'       \item{\code{adj2c}:} Same as \code{adj2}, but incorporating the centering step from Zhao et al. (2024) and Lu et al. (2023).
+#'     }}
+#'   \item{var_vec}{Variance estimates:
+#'     \itemize{
+#'       \item{\code{adj2}:} Variance for \code{adj2} via the sample variance of its asymptotic variance formula.
+#'       \item{\code{adj2c}:} Variance for \code{adj2c} via the sample variance of its asymptotic variance formula.
+#'     }}
+#' }
+#'
+#' @export
+#'
+#' @references
+#' Gu, Y., Liu, L. and Ma, W. (2025) \emph{Assumption-lean covariate adjustment under covariate adaptive randomization when p = o (n). arXiv preprint, arXiv:2512.20046}, \doi{10.48550/arXiv.2512.20046}.\cr
+#' Lu, X., Yang, F. and Wang, Y. (2023) \emph{Debiased regression adjustment in completely randomized experiments with moderately high-dimensional covariates. arXiv preprint, arXiv:2309.02073}, \doi{10.48550/arXiv.2309.02073}. \cr
+#' Zhao, S., Wang, X., Liu, L. and Zhang, X. (2024) \emph{Covariate Adjustment in Randomized Experiments Motivated by Higher-Order Influence Functions. arXiv preprint, arXiv:2411.08491}, \doi{10.48550/arXiv.2411.08491}.
+#'
+#' @importFrom stats var predict lm sd
+#' @importFrom MASS ginv
+#' @examples
+#'
+#' set.seed(120)
+#' alpha0 <- 0.1;
+#' n <- 400;
+#' S <- as.factor(sample(c("0-30","31-50",">50"),n,replace = TRUE,prob=c(0.2,0.4,0.4)))
+#' ns_min = min(table(S))
+#'
+#' p0 <- ceiling(ns_min * alpha0)
+#' beta0_full <- 1 / (1:p0) ^ (1 / 2) * (-1) ^ c(1:p0)
+#' beta <- beta0_full / norm(beta0_full,type='2')
+#'
+#' Sigma_true <- matrix(0, nrow = p0, ncol = p0)
+#' for (i in 1:p0) {
+#'   for (j in 1:p0) {
+#'     Sigma_true[i, j] <- 0.1 ** (abs(i - j))
+#'   }
+#' }
+#'
+#' X <- mvtnorm::rmvt(n, sigma = Sigma_true, df = 3)
+#'
+#' lp0 <- X %*% beta
+#' delta_X <- 1  -  1/4 * X[, 2] -  1/8 * X[, 3]
+#' lp1 <- lp0 + delta_X
+#'
+#' Y0 <- lp0 + rnorm(n)
+#' Y1 <- lp1 + rnorm(n)
+#'
+#'
+#' pi1 <- 1 / 2
+#'
+#' # We use stratified block randomization as an example. Simple randomization
+#' # is also valid by setting S = rep(1,n) and A = rbinom(n,1,pi1)
+#'
+#' sbr <- function(S,nA,p,block_size=10){
+#'   N <- length(S)
+#'   B <- block_size
+#'   A <- rep(0,N)
+#'   nS <- length(unique(S))
+#'   for(s in 1:nS){
+#'     ind_s <- which(S==s)
+#'     n_s <- length(ind_s)
+#'     A_s <- rep(0,n_s)
+#'     numB <- floor(n_s/B)
+#'     rem <- n_s - numB*B
+#'     size_A <- B*p[s]
+#'     if(numB==0){
+#'       size_rem = floor(rem*p[s])
+#'       size_rem[1] = rem - sum(size_rem[-1])
+#'       A_s[(B*numB+1):n_s] <- sample(rep(0:(nA-1),size_rem),size=rem,replace = FALSE)
+#'     }else{
+#'       for(i in 1:numB){
+#'         A_s[(B*(i-1)+1):(B*i)] <- sample(rep(0:(nA-1),size_A),size=B,replace = FALSE)
+#'       }
+#'       if(rem>0){
+#'         size_rem = floor(rem*p[s])
+#'         size_rem[1] = rem - sum(size_rem[-1])
+#'         A_s[(B*numB+1):n_s] <- sample(rep(0:(nA-1),size_rem),size=rem,replace = FALSE)
+#'       }
+#'     }
+#'     A[ind_s] <- A_s
+#'   }
+#'   return(A)
+#' }
+#'
+#'
+#' A <- sbr(as.numeric(S),2,rep(pi1,3),block_size = 4)
+#'
+#' Y <- A * Y1 + (1 - A) * Y0
+#'
+#' Xc <- cbind(1, scale(X, scale = FALSE))
+#' result.adj2.adj2c.car.ate.ls <- fit.adj2.adj2c.CAR(Y, Xc,S, A, intercept = TRUE,
+#'                                                    target = 'ATE')
+#' result.adj2.adj2c.car.ate.ls
+#' result.adj2.adj2c.car.treat.ls <- fit.adj2.adj2c.CAR(Y, Xc,S, A, intercept = TRUE,
+#'                                                      target = 'EY1')
+#' result.adj2.adj2c.car.treat.ls
+#' result.adj2.adj2c.car.control.ls <- fit.adj2.adj2c.CAR(Y, Xc,S, A, intercept = TRUE,
+#'                                                        target = 'EY0')
+#' result.adj2.adj2c.car.control.ls
+
+
+fit.adj2.adj2c.CAR <- function(Y,
+                               X,
+                               S,
+                               A,
+                               intercept = TRUE,
+                               pi1 = NULL,
+                               target = 'ATE') {
+
+  # Estimate ATE and its variance based on HOIF under Covariate-adaptive randomization in the super-population framework.
+  # randomization scheme: CAR methods like stratified block randomization and minimization
+  # X is centered, can include constant or not
+
+  n <- nrow(X)
+  n1 <- sum(A == 1)
+  n0 <- n - n1
+
+  ### Check for strata S
+
+  if (is.factor(S)) {
+    S_int <- as.integer(S)
+  } else if (is.numeric(S)) {
+    if (any(S < 1) || any(S != floor(S))) {
+      stop("If numeric, S must be integer-valued and start from 1.")
+    } else{
+      S_int = S
+    }
+  }
+
+  S_ls = unique(S_int)
+
+  ### Check for allocation ratio
+
+  if(is.null(pi1)){
+    pik1_hat <- tapply(A,S_int,mean)
+  }else{
+    pik1_hat <- pi1
+  }
+
+  ### weight sum
+
+  ind_1 = which(A==1)
+  ind_0 = which(A==0)
+
+  Y1 <- Y[ind_1]
+  Y0 <- Y[ind_0]
+
+  S1 <- S[ind_1]
+  S0 <- S[ind_0]
+
+  pS = as.numeric(table(S_int))/n
+
+
+  wY1 <- sum(pS*rowsum(Y1,S1)/as.numeric(table(S1)))
+  wY0 <- sum(pS*rowsum(Y0,S0)/as.numeric(table(S0)))
+
+  ### intercept
+
+  if(intercept) X = X[,-1]
+
+  ### adj2
+
+  tau1_adj2 <- 0
+  tau0_adj2 <- 0
+  tau1_adj2c <- 0
+  tau0_adj2c <- 0
+
+
+  sd_r1 <- 0
+  sd_r0 <- 0
+  sd_r1c <- 0
+  sd_r0c <- 0
+
+  for(s in S_ls){
+    ns = length(which(S_int==s))
+    pi_s = pik1_hat[s]
+
+    idx_s <- which(S_int == s)
+    Xs_mat <- X[idx_s, , drop = FALSE]
+    As <- A[idx_s]
+    Ys_vec <- Y[idx_s]
+    ns <- length(idx_s)
+    ps <- ns / n
+
+    H <- Xs_mat %*% MASS::ginv(t(Xs_mat) %*% Xs_mat) %*% t(Xs_mat)
+
+    ### ATE estimates for adj2
+
+    yt_adj2_hat <- as.numeric((H - diag(diag(H))) %*% (As * Ys_vec / pi_s))
+    yc_adj2_hat <- as.numeric((H - diag(diag(H))) %*% ((1 - As) * Ys_vec / (1 - pi_s)))
+
+
+    psi1_adj2_vec <- As * Ys_vec / pi_s + (1 - As / pi_s) * yt_adj2_hat* ns/(ns-1)
+    psi0_adj2_vec <- (1 - As) * Ys_vec / (1 - pi_s) + (1 - (1 - As) / (1 - pi_s)) * yc_adj2_hat * ns/(ns-1)
+    tau1_adj2_s <- mean(psi1_adj2_vec)
+    tau0_adj2_s <- mean(psi0_adj2_vec)
+
+    tau1_adj2 = tau1_adj2 + ps * tau1_adj2_s
+    tau0_adj2 = tau0_adj2 + ps * tau0_adj2_s
+
+    ### Variance estimates for adj2
+    HV = H*ns
+    H_diag <- diag(HV)
+    H_off  <- HV
+    diag(H_off) <- 0      # 用于计算 sum_{i != j} H_ij...
+
+    H_sq_off <- HV^2
+    diag(H_sq_off) <- 0   # 用于计算 sum_{i != j} H_ij^2...
+
+
+    is1 <- (As == 1)
+    is0 <- (As == 0)
+    ns1 <- sum(is1)
+    ns0 <- sum(is0)
+
+
+    v1 <- Ys_vec * is1
+    v0 <- Ys_vec * is0
+
+    sd_Xbeta1 <- as.numeric(t(v1) %*% H_off %*% v1) / (ns1 * (ns1 - 1))
+    sd_Xbeta0 <- as.numeric(t(v0) %*% H_off %*% v0) / (ns0 * (ns0 - 1))
+    sd_0X1     <- as.numeric(t(v1) %*% H_off %*% v0) / (ns1 * ns0)
+
+    sd_SY1    <- as.numeric(t(v1) %*% H_sq_off %*% v1) / (ns1 * (ns1 - 1))
+    sd_SY0    <- as.numeric(t(v0) %*% H_sq_off %*% v0) / (ns0 * (ns0 - 1))
+    sd_0Y1    <- as.numeric(t(v1) %*% H_sq_off %*% v0) / (ns1 * ns0)
+
+    sd_SO1 <- sum(H_diag * v1^2) / ns1
+    sd_SO0 <- sum(H_diag * v0^2) / ns0
+
+    sd_Y1_group <- var(Ys_vec[is1])
+    sd_Y0_group <- var(Ys_vec[is0])
+    mean_Y1_group <- mean(Ys_vec[is1])
+    mean_Y0_group <- mean(Ys_vec[is0])
+
+    # # 6. 累加至全局统计量 (保持你原有的公式逻辑)
+    # sd_r  <- sd_r + ps * ((sd_Y1_group - (1 - pi_s) * sd_Xbeta1) / pi_s +
+    #                         (sd_Y0_group - pi_s * sd_Xbeta0) / (1 - pi_s) -
+    #                         2 * sd_0X1)
+    #
+    # sd_hy <- sd_hy + ps * (mean_Y1_group - wY1 - (mean_Y0_group - wY0))^2
+    #
+    # # 这里的 nS-1 应该是指层内总样本数 ns - 1
+    common_div <- ns - 1
+    # sd_U1 <- sd_U1 + ps * (sd_SO1 * (1 - pi_s) + sd_SY1 * (1 - pi_s)^2) / (common_div * pi_s^2)
+    # sd_U2 <- sd_U2 + ps * (sd_SO0 * pi_s + sd_SY0 * pi_s^2) / (common_div * (1 - pi_s)^2)
+    # sd_U3 <- sd_U3 + ps * sd_0Y1 / common_div
+
+
+    sd_r1 <- sd_r1 + ps * ((sd_Y1_group - (1 - pi_s) * sd_Xbeta1) / pi_s +
+                             (mean_Y1_group - wY1)^2 +
+                             (sd_SO1 * (1 - pi_s) + sd_SY1 * (1 - pi_s)^2) / (common_div * pi_s^2))
+    sd_r0 <- sd_r0 + ps * ( (sd_Y0_group - pi_s * sd_Xbeta0) / (1 - pi_s) +
+                              (mean_Y0_group - wY0)^2 +
+                              (sd_SO0 * pi_s + sd_SY0 * pi_s^2) / (common_div * (1 - pi_s)^2))
+
+    sd_r <- sd_r1 + sd_r0 - 2 * ps * (sd_0X1 + (mean_Y1_group - wY1)*(mean_Y0_group - wY0) +
+                                        sd_0Y1 / common_div)
+    ### ATE estimates for adj2c
+
+    tau1_unadj <- mean(As * Ys_vec / pi_s)
+    tau0_unadj <- mean((1 - As) * Ys_vec / (1 - pi_s))
+
+    yt_adj2c_hat <- as.numeric((H - diag(diag(H))) %*% (As * (Ys_vec- tau1_unadj) / pi_s))
+    yc_adj2c_hat <- as.numeric((H - diag(diag(H))) %*% ((1 - As) * (Ys_vec- tau0_unadj) / (1 - pi_s)))
+
+
+    psi1_adj2c_vec <- As * Ys_vec / pi_s + (1 - As / pi_s) * yt_adj2_hat
+    psi0_adj2c_vec <- (1 - As) * Ys_vec / (1 - pi_s) + (1 - (1 - As) / (1 - pi_s)) * yc_adj2_hat
+    tau1_adj2c_s <- mean(psi1_adj2c_vec)
+    tau0_adj2c_s <- mean(psi0_adj2c_vec)
+
+    tau1_adj2c = tau1_adj2c + ps * tau1_adj2c_s
+    tau0_adj2c = tau0_adj2c + ps * tau0_adj2c_s
+
+
+    ### Variance estimates for adjc
+
+    v1c <- Ys_vec * is1 - mean_Y1_group
+    v0c <- Ys_vec * is0 - mean_Y0_group
+
+    sd_Xbeta1c <- as.numeric(t(v1c) %*% H_off %*% v1c) / (ns1 * (ns1 - 1))
+    sd_Xbeta0c <- as.numeric(t(v0c) %*% H_off %*% v0c) / (ns0 * (ns0 - 1))
+    sd_0X1c     <- as.numeric(t(v1c) %*% H_off %*% v0c) / (ns1 * ns0)
+
+    sd_SY1c    <- as.numeric(t(v1c) %*% H_sq_off %*% v1c) / (ns1 * (ns1 - 1))
+    sd_SY0c    <- as.numeric(t(v0c) %*% H_sq_off %*% v0c) / (ns0 * (ns0 - 1))
+    sd_0Y1c    <- as.numeric(t(v1c) %*% H_sq_off %*% v0c) / (ns1 * ns0)
+
+    sd_SO1c <- sum(H_diag * v1c^2) / ns1
+    sd_SO0c <- sum(H_diag * v0c^2) / ns0
+
+    sd_r1c <- sd_r1c + ps * ((sd_Y1_group - (1 - pi_s) * sd_Xbeta1c) / pi_s +
+                               (mean_Y1_group - wY1)^2 +
+                               (sd_SO1c * (1 - pi_s) + sd_SY1c * (1 - pi_s)^2) / (common_div * pi_s^2))
+    sd_r0c <- sd_r0c + ps * ( (sd_Y0_group - pi_s * sd_Xbeta0c) / (1 - pi_s) +
+                                (mean_Y0_group - wY0)^2 +
+                                (sd_SO0c * pi_s + sd_SY0c * pi_s^2) / (common_div * (1 - pi_s)^2))
+
+    sd_rc <- sd_r1c + sd_r0 - 2 * ps * (sd_0X1c + (mean_Y1_group - wY1)*(mean_Y0_group - wY0) +
+                                          sd_0Y1c / common_div)
+
+  }
+
+
+
+
+  tau_adj2 <- switch(target,
+                     'ATE' = tau1_adj2 - tau0_adj2,
+                     'EY1' = tau1_adj2,
+                     'EY0' = tau0_adj2)
+  var_tau_adj2 <- switch(target,
+                         'ATE' = sd_r/n,
+                         'EY1' = sd_r1/n1,
+                         'EY0' = sd_r0/n0)
+
+  tau_adj2c <- switch(target,
+                      'ATE' = tau1_adj2c - tau0_adj2c,
+                      'EY1' = tau1_adj2c,
+                      'EY0' = tau0_adj2c)
+  var_tau_adj2c <- switch(target,
+                          'ATE' = sd_rc/n,
+                          'EY1' = sd_r1c/n1,
+                          'EY0' = sd_r0c/n0)
+
+  tau_vec <- c(tau_adj2, tau_adj2c)
+  names(tau_vec) <- c('adj2', 'adj2c')
+
+  var_vec <- c(var_tau_adj2, var_tau_adj2c)
+  names(var_vec) <- c('adj2','adj2c')
+
+  return(list(
+    tau_vec = tau_vec,
+    var_vec = var_vec
+  ))
+
+}
 
